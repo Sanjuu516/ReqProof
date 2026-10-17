@@ -71,5 +71,20 @@ class TestDirectAPI(unittest.TestCase):
         pdf_resp = download_report(run.analysis_run_id, format="pdf", current_user=user, db=self.db)
         self.assertGreater(len(pdf_resp.body), 50)
 
+        # 9. Database & System Transparency Test
+        from app.api.system import get_database_overview, get_gemini_status
+        db_overview = get_database_overview(current_user=user, db=self.db)
+        self.assertEqual(db_overview["tables"]["users"] >= 1, True)
+        self.assertIn("registered_users", db_overview)
+
+        gemini_status = get_gemini_status(current_user=user)
+        self.assertIn("configured", gemini_status)
+
+        # 10. Load Demo Benchmark Project Test
+        from app.api.projects import load_demo_project
+        demo_resp = load_demo_project(proj.project_id, current_user=user, db=self.db)
+        self.assertIn("summary", demo_resp)
+        self.assertGreater(demo_resp["summary"]["total_files"], 0)
+
 if __name__ == "__main__":
     unittest.main()

@@ -157,9 +157,50 @@ export const api = {
     return request<EvidenceRecord[]>(`/claims/${claimId}/evidence`);
   },
 
+  async loadDemoProject(projectId: number): Promise<any> {
+    return request<any>(`/projects/${projectId}/load-demo`, {
+      method: 'POST',
+    });
+  },
+
+  async uploadFolderFiles(projectId: number, files: FileList | File[]): Promise<any> {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      // webkitRelativePath contains the full relative path from the selected folder
+      const relPath = (f as any).webkitRelativePath || f.name;
+      formData.append('files', f, relPath);
+    }
+    const token = localStorage.getItem('reqproof_token');
+    const res = await fetch(`${API_BASE}/projects/${projectId}/upload-folder`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to upload folder');
+    }
+    return res.json();
+  },
+
+  async getDatabaseOverview(): Promise<any> {
+    return request<any>('/system/database-overview');
+  },
+
+  async getGeminiStatus(): Promise<any> {
+    return request<any>('/system/gemini-status');
+  },
+
+  async updateGeminiKey(apiKey: string): Promise<any> {
+    return request<any>('/system/gemini-key', {
+      method: 'POST',
+      body: JSON.stringify({ api_key: apiKey }),
+    });
+  },
+
   // Reports
   getReportDownloadUrl(runId: number, format: 'pdf' | 'csv' = 'pdf'): string {
-    const token = localStorage.getItem('reqproof_token');
     return `${API_BASE}/reports/${runId}/download?format=${format}`;
   },
 };

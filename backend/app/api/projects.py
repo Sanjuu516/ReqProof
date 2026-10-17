@@ -140,6 +140,141 @@ async def upload_project_zip(
         if os.path.exists(temp_zip):
             os.remove(temp_zip)
 
+@router.post("/{project_id}/load-demo")
+def load_demo_project(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    project = get_authorized_project(project_id, current_user, db)
+    demo_zip = os.path.join(settings.BASE_DIR, "samples/sample-spring-react-app.zip")
+    if not os.path.exists(demo_zip):
+        raise HTTPException(status_code=404, detail="Demo project archive not found on server.")
+
+    # 1. Extract and scan artifacts
+    extract_dir, artifacts, summary = extract_and_scan_zip(demo_zip, project.project_id, db)
+
+    # 2. Automatically seed ground truth requirements if not present
+    from app.models import AtomicClaim
+    from app.services.gemini_service import decompose_requirement_with_gemini
+
+    sample_reqs = [
+        "The system must reject expired authentication tokens and validate JWT signature.",
+        "The user login form must validate password length before submission.",
+        "The system shall support WebAuthn biometric hardware authentication."
+    ]
+
+    for req_text in sample_reqs:
+        existing = db.query(Requirement).filter(
+            Requirement.project_id == project.project_id,
+            Requirement.requirement_text == req_text
+        ).first()
+        if not existing:
+            req = Requirement(project_id=project.project_id, requirement_text=req_text)
+            db.add(req)
+            db.commit()
+            db.refresh(req)
+
+            decomposed = decompose_requirement_with_gemini(req_text)
+            for item in decomposed:
+                claim = AtomicClaim(
+                    requirement_id=req.requirement_id,
+                    claim_text=item.get("claim_text", req_text),
+                    expected_behavior=item.get("expected_behavior", ""),
+                    verification_criteria=item.get("verification_criteria", ""),
+                    relevant_artifact_types=item.get("relevant_artifact_types", "source,api,test"),
+                    review_status="reviewed"
+                )
+                db.add(claim)
+            db.commit()
+
+    return {
+        "message": "Demo benchmark application and sample requirements loaded successfully!",
+        "summary": summary,
+        "requirements_loaded": len(sample_reqs)
+    }
+
+@router.post("/{project_id}/upload-folder")
+async def upload_folder_files(
+    project_id: int,
+    files: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Accepts files selected from a directory via HTML5 webkitdirectory.
+    """
+    project = get_authorized_project(project_id, current_user, db)
+    extract_dir = os.path.join(settings.UPLOAD_DIR, f"project_{project_id}")
+    os.makedirs(extract_dir, exist_ok=True)
+
+    for file in files:
+        # File filename may contain relative path if transmitted by browser
+        filename = file.filename or "file.txt"
+        safe_rel_path = filename.replace("\\", "/").lstrip("/")
+        dest_path = os.path.join(extract_dir, safe_rel_path)
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+        content = await file.read()
+        with open(dest_path, "wb") as f:
+            f.write(content)
+
+    # Re-scan repository
+    from app.services.zip_service import calculate_file_hash, IGNORED_DIRS, LANGUAGE_EXTENSIONS
+    db.query(Artifact).filter(Artifact.project_id == project_id).delete()
+
+    artifacts = []
+    manifests = []
+    languages_detected = set()
+
+    for root, dirs, f_list in os.walk(extract_dir):
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith('.')]
+        for fname in f_list:
+            if fname.startswith('.'):
+                continue
+            full_path = os.path.join(root, fname)
+            rel_path = os.path.relpath(full_path, extract_dir)
+            _, ext = os.path.splitext(fname)
+            ext = ext.lower()
+
+            artifact_type = "other"
+            language = LANGUAGE_EXTENSIONS.get(ext)
+            if language:
+                languages_detected.add(language)
+
+            if fname in {"pom.xml", "package.json", "build.gradle", "application.properties"}:
+                artifact_type = "config"
+                manifests.append(rel_path)
+            elif "test" in rel_path.lower() or fname.endswith("Test.java") or fname.endswith(".test.ts"):
+                artifact_type = "test"
+            elif ext in {".tsx", ".jsx", ".html", ".css"}:
+                artifact_type = "ui"
+            elif ext in {".java", ".ts", ".js", ".py"}:
+                artifact_type = "source"
+            elif ext == ".xml" and ("test" in rel_path.lower() or "surefire" in rel_path.lower()):
+                artifact_type = "test_report"
+
+            art = Artifact(
+                project_id=project_id,
+                artifact_path=rel_path,
+                artifact_type=artifact_type,
+                language=language,
+                content_hash=calculate_file_hash(full_path),
+                analysis_status="processed"
+            )
+            db.add(art)
+            artifacts.append(art)
+
+    db.commit()
+    return {
+        "message": f"Successfully uploaded and scanned {len(artifacts)} files from folder.",
+        "summary": {
+            "total_files": len(artifacts),
+            "languages": list(languages_detected),
+            "manifests": manifests
+        }
+    }
+
 @router.get("/{project_id}/artifacts", response_model=List[ArtifactResponse])
 def list_project_artifacts(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = get_authorized_project(project_id, current_user, db)

@@ -8,7 +8,8 @@ import { EvidenceModal } from '../components/EvidenceModal';
 import { RequirementGraphView } from '../components/RequirementGraph';
 import {
   Upload, Play, FileText, Layers, GitFork, AlertTriangle, CheckCircle,
-  FileCode, ArrowLeft, RefreshCw, Download, Plus, Sparkles, Filter, ExternalLink
+  FileCode, ArrowLeft, RefreshCw, Plus, Sparkles, Filter, FolderPlus,
+  Zap, Check, HelpCircle, ArrowRight
 } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
@@ -30,6 +31,7 @@ export const ProjectDetailPage: React.FC = () => {
   // UI interaction states
   const [analyzing, setAnalyzing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [loadingDemo, setLoadingDemo] = useState(false);
   const [newReqText, setNewReqText] = useState('');
   const [addingReq, setAddingReq] = useState(false);
   const [selectedResult, setSelectedResult] = useState<ClaimResult | null>(null);
@@ -78,11 +80,44 @@ export const ProjectDetailPage: React.FC = () => {
       setUploading(true);
       await api.uploadProjectZip(projectId, file);
       await loadAllData();
-      alert('Project archive uploaded and scanned successfully!');
+      setActiveTab('artifacts');
+      alert('Project ZIP archive extracted and scanned successfully!');
     } catch (err: any) {
       alert(err.message || 'Upload failed');
     } finally {
       setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleUploadFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setUploading(true);
+      await api.uploadFolderFiles(projectId, files);
+      await loadAllData();
+      setActiveTab('artifacts');
+      alert(`Successfully scanned ${files.length} files from directory!`);
+    } catch (err: any) {
+      alert(err.message || 'Folder upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLoadDemo = async () => {
+    try {
+      setLoadingDemo(true);
+      await api.loadDemoProject(projectId);
+      await loadAllData();
+      alert('Demo Spring Boot & React benchmark project + 3 sample requirements loaded! You can now click "Run Verification".');
+    } catch (err: any) {
+      alert(err.message || 'Failed to load demo project');
+    } finally {
+      setLoadingDemo(false);
     }
   };
 
@@ -103,6 +138,12 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleRunAnalysis = async () => {
+    if (requirements.length === 0) {
+      alert('Please add at least one requirement before running verification.');
+      setActiveTab('requirements');
+      return;
+    }
+
     try {
       setAnalyzing(true);
       const run = await api.triggerAnalysisRun(projectId);
@@ -153,15 +194,107 @@ export const ProjectDetailPage: React.FC = () => {
             <p className="text-sm text-slate-500 max-w-2xl">{project?.description || 'No description provided.'}</p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleLoadDemo}
+              disabled={loadingDemo}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold shadow-2xs transition"
+              title="Auto-load pre-packaged Spring Boot & React benchmark with deliberate contradiction"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-600" />
+              {loadingDemo ? 'Loading Demo...' : 'Load Benchmark Demo'}
+            </button>
+
             <button
               onClick={handleRunAnalysis}
-              disabled={analyzing || requirements.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold shadow-xs disabled:opacity-50 transition"
+              disabled={analyzing}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold shadow-xs transition ${
+                requirements.length > 0
+                  ? 'bg-sky-600 hover:bg-sky-700 text-white'
+                  : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+              }`}
             >
-              <Play className={`w-4 h-4 ${analyzing ? 'animate-spin' : ''}`} />
+              <Play className={`w-3.5 h-3.5 ${analyzing ? 'animate-spin' : ''}`} />
               {analyzing ? 'Evaluating Evidence...' : 'Run Verification'}
             </button>
+          </div>
+        </div>
+
+        {/* 3-Step Onboarding & Verification Readiness Guide */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 shadow-2xs">
+          <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 mb-3">
+            Verification Workflow & Checklist
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Step 1: Upload */}
+            <div className={`p-3.5 rounded-lg border flex items-start gap-3 transition ${
+              artifacts.length > 0 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                artifacts.length > 0 ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+              }`}>
+                {artifacts.length > 0 ? <Check className="w-3.5 h-3.5" /> : '1'}
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-slate-900">1. Upload Software Artifacts</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {artifacts.length > 0 ? `${artifacts.length} files scanned` : 'Upload ZIP or select project folder'}
+                </p>
+                <button
+                  onClick={() => setActiveTab('artifacts')}
+                  className="mt-2 text-[11px] font-semibold text-sky-600 hover:underline flex items-center gap-0.5"
+                >
+                  Upload Files <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* Step 2: Requirements */}
+            <div className={`p-3.5 rounded-lg border flex items-start gap-3 transition ${
+              requirements.length > 0 ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                requirements.length > 0 ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'
+              }`}>
+                {requirements.length > 0 ? <Check className="w-3.5 h-3.5" /> : '2'}
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-slate-900">2. Define Requirements</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {requirements.length > 0 ? `${requirements.length} requirement(s) configured` : 'Add text requirements for AI decomposition'}
+                </p>
+                <button
+                  onClick={() => setActiveTab('requirements')}
+                  className="mt-2 text-[11px] font-semibold text-sky-600 hover:underline flex items-center gap-0.5"
+                >
+                  Manage Requirements <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* Step 3: Run Verification */}
+            <div className={`p-3.5 rounded-lg border flex items-start gap-3 transition ${
+              results.length > 0 ? 'bg-sky-50/50 border-sky-200' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                results.length > 0 ? 'bg-sky-600 text-white' : 'bg-slate-300 text-slate-700'
+              }`}>
+                {results.length > 0 ? <Check className="w-3.5 h-3.5" /> : '3'}
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-slate-900">3. Run Verification Engine</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {results.length > 0 ? `${results.length} claims verified` : 'Ready when requirements are defined'}
+                </p>
+                <button
+                  onClick={handleRunAnalysis}
+                  disabled={analyzing}
+                  className="mt-2 text-[11px] font-semibold text-sky-600 hover:underline flex items-center gap-0.5"
+                >
+                  {analyzing ? 'Evaluating...' : 'Run Now'} <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -185,6 +318,18 @@ export const ProjectDetailPage: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('artifacts')}
+            className={`flex items-center gap-2 py-3 px-4 text-sm font-semibold border-b-2 transition ${
+              activeTab === 'artifacts'
+                ? 'border-sky-600 text-sky-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Upload className="w-4 h-4" />
+            Upload & Artifacts ({artifacts.length})
+          </button>
+
+          <button
             onClick={() => setActiveTab('requirements')}
             className={`flex items-center gap-2 py-3 px-4 text-sm font-semibold border-b-2 transition ${
               activeTab === 'requirements'
@@ -194,18 +339,6 @@ export const ProjectDetailPage: React.FC = () => {
           >
             <Layers className="w-4 h-4" />
             Requirements & Claims ({requirements.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('artifacts')}
-            className={`flex items-center gap-2 py-3 px-4 text-sm font-semibold border-b-2 transition ${
-              activeTab === 'artifacts'
-                ? 'border-sky-600 text-sky-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <FileCode className="w-4 h-4" />
-            Artifacts ({artifacts.length})
           </button>
 
           <button
@@ -288,7 +421,7 @@ export const ProjectDetailPage: React.FC = () => {
 
             {/* Filter Bar */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 flex-wrap">
                 <Filter className="w-4 h-4 text-slate-400" />
                 <span>Filter by Status:</span>
                 {['ALL', 'Contradictory', 'Fully Satisfied', 'Partially Satisfied', 'Missing', 'Unverifiable'].map((st) => (
@@ -318,15 +451,17 @@ export const ProjectDetailPage: React.FC = () => {
               <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-300 p-6">
                 <p className="text-sm font-semibold text-slate-700">No verification results available yet.</p>
                 <p className="text-xs text-slate-500 mt-1 mb-4">
-                  Add requirements and upload software artifacts, then click "Run Verification".
+                  Add requirements and upload software artifacts, or click "Load Benchmark Demo" above!
                 </p>
-                <button
-                  onClick={handleRunAnalysis}
-                  disabled={requirements.length === 0}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold shadow-xs disabled:opacity-50"
-                >
-                  Run Verification
-                </button>
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={handleLoadDemo}
+                    disabled={loadingDemo}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs"
+                  >
+                    Load Benchmark Demo
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
@@ -384,7 +519,125 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: REQUIREMENTS & CLAIMS */}
+        {/* TAB 2: UPLOAD & ARTIFACT DISCOVERY */}
+        {activeTab === 'artifacts' && (
+          <div className="space-y-6">
+            {/* Upload Options Card */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
+              <h3 className="text-base font-bold text-slate-900 mb-1">Upload Project Artifacts</h3>
+              <p className="text-xs text-slate-500 mb-6">
+                You can upload your existing software project as a compressed ZIP file or select the project folder directly from your computer.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {/* Option 1: ZIP Upload */}
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-sky-400 transition bg-slate-50/50 flex flex-col items-center justify-center">
+                  <Upload className="w-8 h-8 text-sky-600 mb-2" />
+                  <h4 className="text-sm font-bold text-slate-800">Upload ZIP Archive</h4>
+                  <p className="text-xs text-slate-400 mb-3">Compress your project directory into a .zip file</p>
+                  <label className="cursor-pointer">
+                    <span className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold shadow-xs inline-block">
+                      {uploading ? 'Extracting...' : 'Select ZIP File'}
+                    </span>
+                    <input
+                      type="file"
+                      accept=".zip"
+                      disabled={uploading}
+                      onChange={handleUploadZip}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Option 2: Folder Directory Upload */}
+                <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-indigo-400 transition bg-slate-50/50 flex flex-col items-center justify-center">
+                  <FolderPlus className="w-8 h-8 text-indigo-600 mb-2" />
+                  <h4 className="text-sm font-bold text-slate-800">Select Project Folder</h4>
+                  <p className="text-xs text-slate-400 mb-3">Pick the root folder directly without zipping</p>
+                  <label className="cursor-pointer">
+                    <span className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs inline-block">
+                      {uploading ? 'Scanning...' : 'Select Directory'}
+                    </span>
+                    <input
+                      type="file"
+                      /* @ts-ignore */
+                      webkitdirectory=""
+                      directory=""
+                      multiple
+                      disabled={uploading}
+                      onChange={handleUploadFolder}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Demo button option */}
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-amber-900">Don't have a project prepared right now?</h4>
+                  <p className="text-[11px] text-amber-700">
+                    Load the pre-packaged Spring Boot & React ground-truth benchmark app with 1 click.
+                  </p>
+                </div>
+                <button
+                  onClick={handleLoadDemo}
+                  disabled={loadingDemo}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-2xs"
+                >
+                  {loadingDemo ? 'Loading...' : 'Load Benchmark Demo'}
+                </button>
+              </div>
+            </div>
+
+            {/* Discovered Artifacts Table */}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Discovered Project Artifacts ({artifacts.length})
+                </h3>
+              </div>
+              {artifacts.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs font-mono">
+                  No artifacts uploaded yet. Use the upload cards above to scan your project.
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500 font-mono">
+                      <th className="py-3 px-4">Artifact Path</th>
+                      <th className="py-3 px-4">Type</th>
+                      <th className="py-3 px-4">Language</th>
+                      <th className="py-3 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {artifacts.map((a) => (
+                      <tr key={a.artifact_id} className="hover:bg-slate-50/80">
+                        <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-800">
+                          {a.artifact_path}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                            {a.artifact_type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-xs text-slate-500">
+                          {a.language || 'N/A'}
+                        </td>
+                        <td className="py-3 px-4 text-xs font-medium text-emerald-600">
+                          {a.analysis_status}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: REQUIREMENTS & CLAIMS */}
         {activeTab === 'requirements' && (
           <div className="space-y-6">
             {/* Requirement Input Form */}
@@ -472,75 +725,6 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: UPLOAD & ARTIFACT DISCOVERY */}
-        {activeTab === 'artifacts' && (
-          <div className="space-y-6">
-            {/* Upload Box */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-              <h3 className="text-base font-bold text-slate-900 mb-1">Upload Software Project Archive</h3>
-              <p className="text-xs text-slate-500 mb-4">
-                Upload a ZIP archive containing your Java backend, React/TS frontend, and JUnit test results.
-              </p>
-
-              <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-sky-400 transition bg-slate-50/50">
-                <Upload className="w-10 h-10 mx-auto text-slate-400 mb-3" />
-                <label className="cursor-pointer">
-                  <span className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold shadow-xs inline-block">
-                    {uploading ? 'Extracting & Scanning...' : 'Select ZIP File'}
-                  </span>
-                  <input
-                    type="file"
-                    accept=".zip"
-                    disabled={uploading}
-                    onChange={handleUploadZip}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-xs text-slate-400 mt-2">Maximum file size: 50MB (.zip archives only)</p>
-              </div>
-            </div>
-
-            {/* Discovered Artifacts Table */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900">
-                  Discovered Project Artifacts ({artifacts.length})
-                </h3>
-              </div>
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500 font-mono">
-                    <th className="py-3 px-4">Artifact Path</th>
-                    <th className="py-3 px-4">Type</th>
-                    <th className="py-3 px-4">Language</th>
-                    <th className="py-3 px-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {artifacts.map((a) => (
-                    <tr key={a.artifact_id} className="hover:bg-slate-50/80">
-                      <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-800">
-                        {a.artifact_path}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                          {a.artifact_type}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-slate-500">
-                        {a.language || 'N/A'}
-                      </td>
-                      <td className="py-3 px-4 text-xs font-medium text-emerald-600">
-                        {a.analysis_status}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {/* TAB 4: DEPENDENCY GRAPH */}
         {activeTab === 'graph' && graph && <RequirementGraphView graph={graph} />}
 
@@ -565,7 +749,7 @@ export const ProjectDetailPage: React.FC = () => {
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold shadow-xs"
                   >
-                    <Download className="w-3.5 h-3.5" /> Download PDF
+                    Download PDF
                   </a>
                 </div>
 
@@ -579,7 +763,7 @@ export const ProjectDetailPage: React.FC = () => {
                     download
                     className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold shadow-xs"
                   >
-                    <Download className="w-3.5 h-3.5" /> Download CSV
+                    Download CSV
                   </a>
                 </div>
               </div>
