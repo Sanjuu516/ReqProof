@@ -26,6 +26,13 @@ class Token(BaseModel):
     token_type: str = "bearer"
     user: UserResponse
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
 
 # --- Project Schemas ---
 class ProjectCreate(BaseModel):

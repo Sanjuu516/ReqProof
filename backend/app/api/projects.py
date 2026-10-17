@@ -281,6 +281,38 @@ def list_project_artifacts(project_id: int, current_user: User = Depends(get_cur
     artifacts = db.query(Artifact).filter(Artifact.project_id == project.project_id).all()
     return [ArtifactResponse.model_validate(a) for a in artifacts]
 
+@router.get("/{project_id}/artifacts/{artifact_id}/content")
+def get_artifact_content(
+    project_id: int,
+    artifact_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    project = get_authorized_project(project_id, current_user, db)
+    artifact = db.query(Artifact).filter(Artifact.artifact_id == artifact_id, Artifact.project_id == project.project_id).first()
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Artifact not found.")
+
+    extract_dir = os.path.join(settings.UPLOAD_DIR, f"project_{project_id}")
+    full_path = os.path.join(extract_dir, artifact.artifact_path)
+
+    if not os.path.isfile(full_path):
+        raise HTTPException(status_code=404, detail="Artifact file does not exist on disk.")
+
+    try:
+        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
+
+    return {
+        "artifact_id": artifact.artifact_id,
+        "artifact_path": artifact.artifact_path,
+        "language": artifact.language,
+        "artifact_type": artifact.artifact_type,
+        "content": content
+    }
+
 @router.get("/{project_id}/history", response_model=List[AnalysisRunResponse])
 def get_project_history(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = get_authorized_project(project_id, current_user, db)

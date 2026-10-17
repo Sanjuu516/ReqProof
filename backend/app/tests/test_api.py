@@ -86,5 +86,19 @@ class TestDirectAPI(unittest.TestCase):
         self.assertIn("summary", demo_resp)
         self.assertGreater(demo_resp["summary"]["total_files"], 0)
 
+        # 11. Password Reset Flow Test
+        from app.api.auth import forgot_password, reset_password
+        from app.schemas import ForgotPasswordRequest, ResetPasswordRequest
+        from app.services.auth_service import create_password_reset_token
+
+        # Dispatch reset email
+        fp_resp = forgot_password(ForgotPasswordRequest(email=user.email), self.db)
+        self.assertIn("sent", fp_resp["message"])
+
+        # Reset password with valid token
+        reset_tok = create_password_reset_token(user.email)
+        rp_resp = reset_password(ResetPasswordRequest(token=reset_tok, new_password="BrandNewPassword2026!"), self.db)
+        self.assertIn("successfully updated", rp_resp["message"])
+
 if __name__ == "__main__":
     unittest.main()

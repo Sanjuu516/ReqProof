@@ -71,6 +71,20 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
 
+def create_password_reset_token(email: str, expires_delta_seconds: int = 3600) -> str:
+    """Creates a signed 1-hour expiration token for password resets."""
+    return create_access_token({"sub": email, "type": "password_reset"}, expires_delta_seconds)
+
+def verify_password_reset_token(token: str) -> Optional[str]:
+    """Verifies a password reset token and returns the email if valid."""
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+    if payload.get("type") != "password_reset":
+        return None
+    return payload.get("sub")
+
+
 def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security), db: Session = Depends(get_db)) -> User:
     if not credentials:
         raise HTTPException(

@@ -61,6 +61,20 @@ export const api = {
     return request<User>('/auth/me');
   },
 
+  async forgotPassword(email: string): Promise<any> {
+    return request<any>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async resetPassword(data: { token: string; new_password: string }): Promise<any> {
+    return request<any>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   // Projects
   async listProjects(): Promise<Project[]> {
     return request<Project[]>('/projects');
@@ -103,6 +117,10 @@ export const api = {
 
   async listArtifacts(projectId: number): Promise<Artifact[]> {
     return request<Artifact[]>(`/projects/${projectId}/artifacts`);
+  },
+
+  async getArtifactContent(projectId: number, artifactId: number): Promise<{ artifact_id: number; artifact_path: string; language?: string; artifact_type: string; content: string }> {
+    return request<any>(`/projects/${projectId}/artifacts/${artifactId}/content`);
   },
 
   async getProjectHistory(projectId: number): Promise<AnalysisRun[]> {

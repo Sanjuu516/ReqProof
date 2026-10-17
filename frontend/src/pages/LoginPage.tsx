@@ -64,9 +64,17 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Password
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-semibold text-sky-600 hover:text-sky-700 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 type="password"
                 required
@@ -86,11 +94,13 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-slate-500">
-            Don't have an account?{' '}
-            <Link to="/register" className="font-semibold text-sky-600 hover:text-sky-500">
-              Create an account
-            </Link>
+          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>
+              Don't have an account?{' '}
+              <Link to="/register" className="font-semibold text-sky-600 hover:text-sky-500">
+                Register
+              </Link>
+            </span>
           </div>
         </div>
       </div>
