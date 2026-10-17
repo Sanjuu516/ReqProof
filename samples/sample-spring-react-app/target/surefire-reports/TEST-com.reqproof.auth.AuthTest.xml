@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.reqproof.auth.AuthTest" tests="2" failures="1" errors="0" skipped="0" time="0.145">
+    <testcase classname="com.reqproof.auth.AuthTest" name="testPasswordLengthValidation" time="0.042"/>
+    <testcase classname="com.reqproof.auth.AuthTest" name="testExpiredTokenRejection" time="0.098">
+        <failure message="AssertionFailedError: Expected 401 UNAUTHORIZED for expired token but received 200 OK" type="org.opentest4j.AssertionFailedError">
+org.opentest4j.AssertionFailedError: Expected 401 UNAUTHORIZED for expired token but received 200 OK
+    at com.reqproof.auth.AuthTest.testExpiredTokenRejection(AuthTest.java:48)
+        </failure>
+    </testcase>
+</testsuite>

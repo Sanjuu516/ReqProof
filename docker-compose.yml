@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: reqproof-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./reqproof.db
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - SECRET_KEY=reqproof-production-secret-key-2026
+    volumes:
+      - ./uploads:/app/uploads
+      - reqproof-data:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: reqproof-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  reqproof-data:
